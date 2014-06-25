@@ -53,7 +53,7 @@ description() ->
   [{name, ?X_TYPE}, {description, ?X_DESC}].
 
 policy_changed(OldX, _NewX) ->
-  gen_server_call({delete, X, []}),
+  gen_server_call({delete, OldX, []}),
   ok.
 
 recover(Tx, X) ->
@@ -63,10 +63,8 @@ remove_bindings(Tx, X, Bs) ->
   rabbit_exchange_type_topic:remove_bindings(Tx, X, Bs).
 
 route(X, Delivery) ->
-  case gen_server_call({route, X, Delivery}) of
-    ok ->
-      rabbit_exchange_type_topic:route(X, Delivery)
-  end.
+  gen_server_call({route, X, Delivery}),
+  rabbit_exchange_type_topic:route(X, Delivery).
 
 serialise_events() ->
   false.
@@ -74,8 +72,8 @@ serialise_events() ->
 validate(X) ->
   gen_server_call({validate, X}).
 
-validate_binding(_X, _B) ->
-  ok.
+validate_binding(X, B) ->
+  rabbit_exchange_type_topic:validate_binding(X, B).
 
 %% @private
 %% @spec get_server_call(Args) -> Reply
