@@ -1,9 +1,9 @@
-RabbitMQ Redis Storage Exchange Plugin
+Redis Storage Exchange Plugin
 ======================================
-This is a stripped down example plugin and is not intended for production use.
+This is a stripped down example RabbitMQ plugin and is not intended for production use.
 
-The ``redis-storage-exchange`` example plugin will store messages published through
-the exchange in Redis, using the routing key as the key in Redis and the message
+The ``redis-storage-exchange`` example plugin for RabbitMQ will store messages published
+through the exchange in Redis, using the routing key as the key in Redis and the message
 body will be stored as the body.
 
 This plugin is an example from RabbitMQ in Depth Chapter 14: Writting RabbitMQ Plugins.
