@@ -52,12 +52,9 @@ delete(Tx, X, Bs) ->
 description() ->
   [{name, ?X_TYPE}, {description, ?X_DESC}].
 
-policy_changed(OldX, NewX) ->
-  case delete(none, OldX,
-              rabbit_binding:list_for_source(OldX)) of
-    ok    -> create(none, NewX);
-    Error -> Error
-  end.
+policy_changed(OldX, _NewX) ->
+  gen_server_call({delete, X, []}),
+  ok.
 
 recover(Tx, X) ->
   rabbit_exchange_type_topic:recover(Tx, X).
