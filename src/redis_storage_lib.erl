@@ -14,8 +14,7 @@
 -export([close/2,
          process_message/3,
          validate_connection/1,
-         validate_host/1,
-         validate_port/1]).
+         validate_connection/2]).
 
 -define(DEFAULT_HOST,     <<"localhost">>).
 -define(DEFAULT_PORT,     6379).
@@ -70,37 +69,60 @@ process_message(X,
 %% @end
 %%
 validate_connection(X) ->
+  rabbit_log:info("Validate connection ~p~n", [X]),
   {Host, Port} = get_connection_args(X),
-  case reddy_conn:connect(Host, Port) of
+  validate_connection(Host, Port).
+
+%% @spec validate_connection(Host, Port) -> Result
+%% @where
+%%       Host   = binary() | list()
+%%       Port   = number()
+%%       Result = ok|{error, Error, Args}
+%% @doc Validate the connection information for the exchange
+%% @end
+%%
+validate_connection(Host, Port) ->
+  rabbit_log:info("Validate connection ~p:~p~n", [Host, Port]),
+  case connect(Host, Port) of
     {ok, C} ->
+      rabbit_log:info("Returning ok~n"),
       reddy_conn:close(C),
       ok;
-    {error, Error} -> {error, Error}
+    {error, {error, Error}} ->
+      rabbit_log:info("Returning error: ~p~n", [Error]),
+      case is_atom(Error) of
+        true  -> {error, atom_to_list(Error)};
+        false -> {error, Error}
+      end
   end.
-
-%% @spec validate_host(Value) -> Result
-%% @where
-%%       Value  = binary()|none
-%%       Result = ok|{error, Error}
-%% @doc Validate the user specified hostname is a binary or none
-%% @end
-%%
-validate_host(Value) ->
-  validate_binary_or_none("redis-host", Value).
-
-%% @spec validate_port(Value) -> Result
-%% @where
-%%       Value  = integer()|none
-%%       Result = ok|{error, Error}
-%% @doc Validate the user specified port is an integer value or none
-%% @end
-%%
-validate_port(Value) ->
-  validate_number_or_none("redis-port", Value).
 
 %% ---------------
 %% Private Methods
 %% ---------------
+
+%% @private
+%% @spec connection(Host, Port) -> Result
+%% @where
+%%       Host    = binary()
+%%       Port    = number()
+%%       State   = dict()
+%%       Result  = {ok, pid}|{error, Error}
+%% @doc Connect to redis, casting the binary to a list
+%%
+connect(Host, Port) when is_binary(Host) =:= true ->
+  reddy_conn:connect(binary_to_list(Host), Port);
+
+%% @private
+%% @spec connection(Host, Port) -> Result
+%% @where
+%%       Host    = list()
+%%       Port    = number()
+%%       State   = dict()
+%%       Result  = {ok, pid}|{error, Error}
+%% @doc Connect to redis
+%%
+connect(Host, Port) when is_list(Host) =:= true ->
+  reddy_conn:connect(Host, Port).
 
 %% @private
 %% @spec get_connection(X, State) -> Result
@@ -117,7 +139,7 @@ get_connection(X, State) ->
   case dict:find({Host, Port}, State) of
     {ok, C} -> {C, State};
     error ->
-      case reddy_conn:connect(Host, Port) of
+      case connect(Host, Port) of
         {ok, C}        -> {ok, C, dict:store({Host, Port}, C, State)};
         {error, Error} -> {error, Error}
       end
@@ -245,31 +267,3 @@ get_number(Value) when is_list(Value) ->
   list_to_integer(Value);
 get_number(Value) when is_number(Value) ->
   Value.
-
-%% @private
-%% @spec validate_binary_or_none(Name, Value) -> Result
-%% @doc Validate the user specified value is a binary() or none
-%% @where
-%%       Name   = list()
-%%       Value  = binary()|none
-%%       Result = ok|{error, Error}
-%% @end
-%%
-validate_binary_or_none(_, none) -> ok;
-validate_binary_or_none(_, Value) when is_binary(Value) -> ok;
-validate_binary_or_none(Name, Value) ->
-  {error, "~s should be binary, actually was ~p", [Name, Value]}.
-
-%% @private
-%% @spec validate_binary_or_none(Name, Value) -> Result
-%% @doc Validate the user specified value is a number() or none
-%% @where
-%%       Name   = list()
-%%       Value  = number()|none
-%%       Result = ok|{error, Error}
-%% @end
-%%
-validate_number_or_none(_, none) -> ok;
-validate_number_or_none(_, Value) when is_number(Value) -> ok;
-validate_number_or_none(Name, Value) ->
-  {error, "~s should be a number, actually was ~p", [Name, Value]}.
