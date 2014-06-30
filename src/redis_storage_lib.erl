@@ -103,26 +103,20 @@ validate_connection(Host, Port) ->
 %% @private
 %% @spec connection(Host, Port) -> Result
 %% @where
-%%       Host    = binary()
-%%       Port    = number()
-%%       State   = dict()
-%%       Result  = {ok, pid}|{error, Error}
-%% @doc Connect to redis, casting the binary to a list
-%%
-connect(Host, Port) when is_binary(Host) =:= true ->
-  reddy_conn:connect(binary_to_list(Host), Port);
-
-%% @private
-%% @spec connection(Host, Port) -> Result
-%% @where
-%%       Host    = list()
+%%       Host    = binary()|list()
 %%       Port    = number()
 %%       State   = dict()
 %%       Result  = {ok, pid}|{error, Error}
 %% @doc Connect to redis
 %%
-connect(Host, Port) when is_list(Host) =:= true ->
-  reddy_conn:connect(Host, Port).
+connect(Host, Port) when is_binary(Host) =:= true, is_number(Port) =:= true ->
+  reddy_conn:connect(binary_to_list(Host), Port);
+
+connect(Host, Port) when is_list(Host) =:= true, is_number(Port) =:= true ->
+  reddy_conn:connect(Host, Port);
+
+connect(_, _) ->
+  {error, {error, "Invalid host or port value"}}.
 
 %% @private
 %% @spec get_connection(X, State) -> Result
