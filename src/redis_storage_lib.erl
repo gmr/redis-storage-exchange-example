@@ -8,16 +8,17 @@
 
 -module(redis_storage_lib).
 
--include_lib("rabbit_common/include/rabbit.hrl").
--include_lib("rabbit_common/include/rabbit_framing.hrl").
-
 -export([close/2,
+         close_all/1,
          process_message/3,
          validate_connection/1,
          validate_connection/2]).
 
--define(DEFAULT_HOST,     <<"localhost">>).
--define(DEFAULT_PORT,     6379).
+-define(DEFAULT_HOST, <<"localhost">>).
+-define(DEFAULT_PORT, 6379).
+
+-include_lib("rabbit_common/include/rabbit.hrl").
+-include_lib("rabbit_common/include/rabbit_framing.hrl").
 
 %% @spec close(X, State) -> Result
 %% @where
@@ -36,6 +37,18 @@ close(X, State) ->
     error ->
       {ok, State}
   end.
+
+%% @spec close_all(State) -> Result
+%% @where
+%%       State  = dict()
+%%       Result = ok
+%% @doc Close all open connections to Redis
+%% @end
+%%
+close_all(State) ->
+  Keys = dict:fetch_keys(State),
+  [reddy_conn:close(C) || C <- [dict:fetch(K, State) || K <- Keys]],
+  ok.
 
 %% @spec process_message(X, D, State) -> Result
 %% @where
@@ -69,7 +82,6 @@ process_message(X,
 %% @end
 %%
 validate_connection(X) ->
-  rabbit_log:info("Validate connection ~p~n", [X]),
   {Host, Port} = get_connection_args(X),
   validate_connection(Host, Port).
 
@@ -82,14 +94,11 @@ validate_connection(X) ->
 %% @end
 %%
 validate_connection(Host, Port) ->
-  rabbit_log:info("Validate connection ~p:~p~n", [Host, Port]),
   case connect(Host, Port) of
     {ok, C} ->
-      rabbit_log:info("Returning ok~n"),
       reddy_conn:close(C),
       ok;
     {error, {error, Error}} ->
-      rabbit_log:info("Returning error: ~p~n", [Error]),
       case is_atom(Error) of
         true  -> {error, atom_to_list(Error)};
         false -> {error, Error}
@@ -140,23 +149,7 @@ get_connection(X, State) ->
   end.
 
 %% @private
-%% @spec get_env(EnvVar, DefaultValue) -> Value
-%% @where
-%%       Name         = list()
-%%       DefaultValue = mixed
-%%       Value        = mixed
-%% @doc Return the environment variable defined for listen returning the
-%%      value if the variable is found, otherwise return the passed in default
-%% @end
-%%
-get_env(EnvVar, DefaultValue) ->
-  case application:get_env(listen, EnvVar) of
-    undefined -> DefaultValue;
-    {ok, V}   -> V
-  end.
-
-%% @private
-%% @spec get_url(X) -> Result
+%% @spec get_connection_args(X) -> Result
 %% @where
 %%       X      = rabbit_types:exchange()
 %%       Result = tuple()
@@ -164,9 +157,25 @@ get_env(EnvVar, DefaultValue) ->
 %% @end
 %%
 get_connection_args(X) ->
-  Host     = get_param(X, "host", ?DEFAULT_HOST),
-  Port     = get_number(get_param(X, "port", ?DEFAULT_PORT)),
-  {Host, Port}.
+  {get_param(X, "host", ?DEFAULT_HOST),
+   get_number(get_param(X, "port", ?DEFAULT_PORT))}.
+
+%% @private
+%% @spec get_env(EnvVar, DefaultValue) -> Value
+%% @where
+%%       Name         = list()
+%%       DefaultValue = mixed
+%%       Value        = mixed
+%% @doc Return the environment variable defined for redis_storage returning the
+%%      value if the variable is found, otherwise return the passed in default
+%% @end
+%%
+get_env(EnvVar, DefaultValue) ->
+  case application:get_env(redis_storage, EnvVar) of
+    undefined -> DefaultValue;
+    {ok, V}   -> V
+  end.
+
 
 %% @private
 %% @spec get_parm(X, Name, DefaultValue) -> Value
@@ -183,6 +192,7 @@ get_connection_args(X) ->
 %%
 get_param(X, Name, DefaultValue) when is_atom(Name) ->
   get_param(X, atom_to_list(Name), DefaultValue);
+
 get_param(X=#exchange{arguments=Args}, Name, DefaultValue) when is_list(Name) ->
   case rabbit_policy:get(list_to_binary("redis-" ++ Name), X) of
     undefined -> get_param_value(Args, Name, DefaultValue);

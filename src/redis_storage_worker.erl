@@ -22,6 +22,13 @@ init([]) ->
   register(?MODULE, self()),
   {ok, dict:new()}.
 
+code_change(_, State, _) ->
+  {ok, State}.
+
+terminate(shutdown, State) ->
+  redis_storage_lib:close_all(State),
+  ok.
+
 handle_call({delete, X, _Bs}, _From, State) ->
   {ok, NewState} = redis_storage_lib:close(X, State),
   {reply, ok, NewState};
@@ -49,9 +56,3 @@ handle_cast(_Cast, State) ->
 
 handle_info(_Message, State) ->
   {noreply, State}.
-
-terminate(_,_) ->
-  ok.
-
-code_change(_, State, _) ->
-  {ok, State}.
