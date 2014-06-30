@@ -37,5 +37,5 @@ stop() ->
 init([]) ->
     {ok, {{one_for_one, 3, 10},
           [{?WORKER,
-           {?WORKER, start_link, []},
+           {gen_server, start_link, [{global, ?WORKER}, ?WORKER, [], []]},
            permanent, ?MAX_WAIT, worker, [?WORKER]}]}}.
